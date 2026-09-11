@@ -34,12 +34,7 @@ contract W3B {
         emit OwnerShipTransferred(address(0), owner);
     }
 
-    function _transfer(
-        address from,
-        address to,
-        uint256 amount,
-        bool _mint
-    ) internal {
+    function _transfer(address from, address to, uint256 amount, bool _mint) internal {
         if (to == address(0)) revert NoAddressZero();
 
         if (!_mint) {
@@ -137,13 +132,8 @@ contract StakingContract {
     function stake(uint256 amount) external {
         require(amount > 0, "Amount must be greater than zero");
 
-        (bool success, ) = token.call(
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)",
-                msg.sender,
-                address(this),
-                amount
-            )
+        (bool success,) = token.call(
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", msg.sender, address(this), amount)
         );
 
         require(success, "Transfer failed");
@@ -156,13 +146,7 @@ contract StakingContract {
         require(amount > 0, "Amount must be greater than zero");
         require(stakes[msg.sender] >= amount, "Insufficient staked balance");
 
-        (bool success, ) = token.call(
-            abi.encodeWithSignature(
-                "transfer(address,uint256)",
-                msg.sender,
-                amount
-            )
-        );
+        (bool success,) = token.call(abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount));
 
         require(success, "Transfer failed");
 

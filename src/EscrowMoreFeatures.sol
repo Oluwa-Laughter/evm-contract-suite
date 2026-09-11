@@ -5,11 +5,7 @@ pragma solidity ^0.8.20;
 interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 value
-    ) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
 library EscrowStatus {
@@ -29,36 +25,26 @@ library EscrowMath {
     uint256 internal constant BPS_DENOMINATOR = 10_000;
 
     // Calculates basis points: (amount * bps) / 10,000
-    function calculateBps(
-        uint256 amount,
-        uint256 bps
-    ) internal pure returns (uint256) {
+    function calculateBps(uint256 amount, uint256 bps) internal pure returns (uint256) {
         return (amount * bps) / BPS_DENOMINATOR;
     }
 
     // Calculates standard settlement: fee to platform, remainder to freelancer
-    function calculateSettlement(
-        uint256 amount,
-        uint256 feeBps
-    ) internal pure returns (uint256 freelancerPayout, uint256 platformFee) {
+    function calculateSettlement(uint256 amount, uint256 feeBps)
+        internal
+        pure
+        returns (uint256 freelancerPayout, uint256 platformFee)
+    {
         platformFee = calculateBps(amount, feeBps);
         freelancerPayout = amount - platformFee;
     }
 
     // Calculates dispute split:
 
-    function calculateDisputeSplit(
-        uint256 amount,
-        uint256 clientRefundBps,
-        uint256 feeBps
-    )
+    function calculateDisputeSplit(uint256 amount, uint256 clientRefundBps, uint256 feeBps)
         internal
         pure
-        returns (
-            uint256 clientShare,
-            uint256 freelancerPayout,
-            uint256 platformFee
-        )
+        returns (uint256 clientShare, uint256 freelancerPayout, uint256 platformFee)
     {
         clientShare = calculateBps(amount, clientRefundBps);
         uint256 freelancerGross = amount - clientShare;
@@ -75,10 +61,7 @@ contract EscrowMoreFeatures {
     error FeeExceedsMax(uint256 providedBps, uint256 maxBps);
     error ZeroReviewPeriod();
     error ZeroAmount();
-    error DeliveryDeadlineMustBeInFuture(
-        uint256 deadline,
-        uint256 currentTimestamp
-    );
+    error DeliveryDeadlineMustBeInFuture(uint256 deadline, uint256 currentTimestamp);
     error PartiesMustBeDistinct();
 
     error UnknownEscrow(uint256 escrowId);
@@ -135,26 +118,16 @@ contract EscrowMoreFeatures {
         uint256 deliveryDeadline
     );
 
-    event EscrowDelivered(
-        uint256 indexed escrowId,
-        address indexed freelancer,
-        uint256 reviewDeadline
-    );
+    event EscrowDelivered(uint256 indexed escrowId, address indexed freelancer, uint256 reviewDeadline);
 
     event EscrowApproved(
-        uint256 indexed escrowId,
-        address indexed client,
-        uint256 freelancerPayout,
-        uint256 platformFee
+        uint256 indexed escrowId, address indexed client, uint256 freelancerPayout, uint256 platformFee
     );
 
     event EscrowDisputed(uint256 indexed escrowId, address indexed client);
 
     event EscrowTimeoutFinalized(
-        uint256 indexed escrowId,
-        address indexed freelancer,
-        uint256 freelancerPayout,
-        uint256 platformFee
+        uint256 indexed escrowId, address indexed freelancer, uint256 freelancerPayout, uint256 platformFee
     );
 
     event DisputeResolved(
@@ -165,23 +138,11 @@ contract EscrowMoreFeatures {
         uint256 platformFee
     );
 
-    event EscrowRefunded(
-        uint256 indexed escrowId,
-        address indexed client,
-        uint256 amount
-    );
+    event EscrowRefunded(uint256 indexed escrowId, address indexed client, uint256 amount);
 
-    event Withdrawal(
-        address indexed token,
-        address indexed user,
-        uint256 amount
-    );
+    event Withdrawal(address indexed token, address indexed user, uint256 amount);
 
-    constructor(
-        address _feeRecipient,
-        uint256 _platformFeeBps,
-        uint256 _reviewPeriod
-    ) {
+    constructor(address _feeRecipient, uint256 _platformFeeBps, uint256 _reviewPeriod) {
         // 1. Set a non-zero fee recipient.
         if (_feeRecipient == address(0)) revert ZeroAddress();
 
@@ -207,27 +168,16 @@ contract EscrowMoreFeatures {
         uint256 deliveryDeadline
     ) external returns (uint256 escrowId) {
         // 7. Reject zero addresses, a zero amount, or a delivery deadline that is not in the future.
-        if (
-            freelancer == address(0) ||
-            arbitrator == address(0) ||
-            token == address(0)
-        ) {
+        if (freelancer == address(0) || arbitrator == address(0) || token == address(0)) {
             revert ZeroAddress();
         }
         if (amount == 0) revert ZeroAmount();
         if (deliveryDeadline <= block.timestamp) {
-            revert DeliveryDeadlineMustBeInFuture(
-                deliveryDeadline,
-                block.timestamp
-            );
+            revert DeliveryDeadlineMustBeInFuture(deliveryDeadline, block.timestamp);
         }
 
         // 8. The client, freelancer, and arbitrator must be different addresses.
-        if (
-            msg.sender == freelancer ||
-            msg.sender == arbitrator ||
-            freelancer == arbitrator
-        ) {
+        if (msg.sender == freelancer || msg.sender == arbitrator || freelancer == arbitrator) {
             revert PartiesMustBeDistinct();
         }
 
@@ -247,22 +197,10 @@ contract EscrowMoreFeatures {
         });
 
         // 28. Emit event for creation before external interaction (CEI)
-        emit EscrowCreated(
-            escrowId,
-            msg.sender,
-            freelancer,
-            arbitrator,
-            token,
-            amount,
-            deliveryDeadline
-        );
+        emit EscrowCreated(escrowId, msg.sender, freelancer, arbitrator, token, amount, deliveryDeadline);
 
         // 9. Transfer the tokens from the client into the contract and revert if the transfer fails.
-        bool success = IERC20(token).transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
+        bool success = IERC20(token).transferFrom(msg.sender, address(this), amount);
         if (!success) revert TokenTransferFailed();
     }
 
@@ -280,10 +218,7 @@ contract EscrowMoreFeatures {
             revert UnauthorizedCaller(msg.sender);
         }
         if (block.timestamp > escrow.deliveryDeadline) {
-            revert DeliveryDeadlinePassed(
-                escrow.deliveryDeadline,
-                block.timestamp
-            );
+            revert DeliveryDeadlinePassed(escrow.deliveryDeadline, block.timestamp);
         }
 
         // Update status and set review deadline
@@ -305,10 +240,7 @@ contract EscrowMoreFeatures {
             revert UnauthorizedCaller(msg.sender);
         }
         if (block.timestamp <= escrow.deliveryDeadline) {
-            revert DeliveryDeadlineNotPassed(
-                escrow.deliveryDeadline,
-                block.timestamp
-            );
+            revert DeliveryDeadlineNotPassed(escrow.deliveryDeadline, block.timestamp);
         }
 
         // 23. Each escrow can be refunded or settled only once and can never return to an earlier status.
@@ -338,12 +270,7 @@ contract EscrowMoreFeatures {
         // Internal helper executes settlement and credits balances
         (uint256 freelancerPayout, uint256 platformFee) = _settle(escrow);
 
-        emit EscrowApproved(
-            escrowId,
-            msg.sender,
-            freelancerPayout,
-            platformFee
-        );
+        emit EscrowApproved(escrowId, msg.sender, freelancerPayout, platformFee);
     }
 
     // Alias for approveDelivery
@@ -387,21 +314,13 @@ contract EscrowMoreFeatures {
             revert UnauthorizedCaller(msg.sender);
         }
         if (block.timestamp <= escrow.reviewDeadline) {
-            revert ReviewDeadlineNotPassed(
-                escrow.reviewDeadline,
-                block.timestamp
-            );
+            revert ReviewDeadlineNotPassed(escrow.reviewDeadline, block.timestamp);
         }
 
         // Uses the same settlement calculation and balance crediting as approval
         (uint256 freelancerPayout, uint256 platformFee) = _settle(escrow);
 
-        emit EscrowTimeoutFinalized(
-            escrowId,
-            msg.sender,
-            freelancerPayout,
-            platformFee
-        );
+        emit EscrowTimeoutFinalized(escrowId, msg.sender, freelancerPayout, platformFee);
     }
 
     // Alias for finalizeTimeout
@@ -413,10 +332,7 @@ contract EscrowMoreFeatures {
     // 18. The arbitrator supplies clientRefundBps from 0 to 10,000.
     // 19. Calculate the client's share from the original deposit. The remainder is the freelancer's gross share.
     // 20. Apply the platform fee only to the freelancer's gross share.
-    function resolveDispute(
-        uint256 escrowId,
-        uint256 clientRefundBps
-    ) external {
+    function resolveDispute(uint256 escrowId, uint256 clientRefundBps) external {
         Escrow storage escrow = _getValidEscrow(escrowId);
 
         if (escrow.status != EscrowStatus.Status.Disputed) {
@@ -433,15 +349,8 @@ contract EscrowMoreFeatures {
         escrow.status = EscrowStatus.Status.Resolved;
 
         // 19 & 20: Calculate shares and fee using EscrowMath
-        (
-            uint256 clientShare,
-            uint256 freelancerPayout,
-            uint256 platformFee
-        ) = EscrowMath.calculateDisputeSplit(
-                escrow.amount,
-                clientRefundBps,
-                platformFeeBps
-            );
+        (uint256 clientShare, uint256 freelancerPayout, uint256 platformFee) =
+            EscrowMath.calculateDisputeSplit(escrow.amount, clientRefundBps, platformFeeBps);
 
         // 21. Credit client, freelancer, and fee recipient balances scoped by token and user address
         // 22. For every settlement, all credited amounts combined must equal the original deposit:
@@ -450,13 +359,7 @@ contract EscrowMoreFeatures {
         balances[escrow.token][escrow.freelancer] += freelancerPayout;
         balances[escrow.token][feeRecipient] += platformFee;
 
-        emit DisputeResolved(
-            escrowId,
-            msg.sender,
-            clientShare,
-            freelancerPayout,
-            platformFee
-        );
+        emit DisputeResolved(escrowId, msg.sender, clientShare, freelancerPayout, platformFee);
     }
 
     // 24. Users withdraw only their own available balance for the selected token.
@@ -477,25 +380,18 @@ contract EscrowMoreFeatures {
         if (!success) revert TokenTransferFailed();
     }
 
-    function _getValidEscrow(
-        uint256 escrowId
-    ) internal view returns (Escrow storage) {
+    function _getValidEscrow(uint256 escrowId) internal view returns (Escrow storage) {
         if (escrowId >= nextEscrowId) {
             revert UnknownEscrow(escrowId);
         }
         return escrows[escrowId];
     }
 
-    function _settle(
-        Escrow storage escrow
-    ) internal returns (uint256 freelancerPayout, uint256 platformFee) {
+    function _settle(Escrow storage escrow) internal returns (uint256 freelancerPayout, uint256 platformFee) {
         // 23. Each escrow can be refunded or settled only once
         escrow.status = EscrowStatus.Status.Settled;
 
-        (freelancerPayout, platformFee) = EscrowMath.calculateSettlement(
-            escrow.amount,
-            platformFeeBps
-        );
+        (freelancerPayout, platformFee) = EscrowMath.calculateSettlement(escrow.amount, platformFeeBps);
 
         // 21. Credit balances scoped by token and user address
         // 22. freelancerPayout + platformFee == escrow.amount
